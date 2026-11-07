@@ -42,3 +42,26 @@ test('health: every source answers', async () => {
   const { body } = await call('health', { date: '2026-11-07' });
   assert.ok(body.checks.every(c => c.ok), JSON.stringify(body.checks.filter(c => !c.ok)));
 });
+
+test('market flag: the line only adds a red flag; a game the market flips gets it', async () => {
+  const { body } = await call('slate', { date: '2026-11-07' });
+  const withLine = body.games.filter(g => g.line);
+  assert.ok(withLine.length >= 10, 'lines read from ESPN');
+  for (const g of withLine) {
+    const mm = g.pick.side === 'home' ? -g.line.homeSpread : g.line.homeSpread;
+    assert.ok(Math.abs(g.pick.marketGap - (g.pick.margin - mm)) < 1e-9);
+    assert.equal(g.pick.flags.some(f => f.key === 'market'), g.pick.marketGap >= 4);
+  }
+  assert.ok(body.games.some(g => g.pick.flags.some(f => f.key === 'market')), 'the flipped game is flagged');
+  // The line never moves a projection: same model numbers with the lines stripped.
+  const { pickFor } = require('../lib/picks');
+  const g = withLine[0], noLine = pickFor({ ...g, line: null }, { pHome: g.model.pHome, ph: g.model.ph, pa: g.model.pa, margin: g.model.margin, homeField: 3 }, g.conditions, []);
+  assert.equal(noLine.prob, g.pick.prob); assert.equal(noLine.team.id, g.pick.team.id);
+});
+
+test('replay: the market flag is graded where lines exist', async () => {
+  let body; const res = { setHeader() {}, status() { return this; }, json(b) { body = b; } };
+  await require('../api/accuracy.js')({ method: 'GET', query: { replay: '1', seasons: 'current' }, url: '/' }, res);
+  assert.ok(body.market.withLine > 50, `picks with a line: ${body.market.withLine}`);
+  assert.equal(body.market.flagged.n + body.market.agreed.n, body.market.withLine);
+});

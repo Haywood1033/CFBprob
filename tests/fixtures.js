@@ -42,6 +42,10 @@ function makeWorld({ seed = 7 } = {}) {
   }
   for (const g of games) if (g.state === 'pre') { g.hp = null; g.ap = null; }
   games.find(g => g.season === 2026 && g.week === 11).dome = true; // one slate game indoors
+  // A line on every 2026 game (the home spread: the true gap plus home field, to the half point);
+  // on the slate, one game where the market flips the favorite (the "market disagrees" flag).
+  for (const g of games.filter(x => x.season === 2026)) g.line = -Math.round(((g.home.off + g.home.def) - (g.away.off + g.away.def) + (g.neutral ? 0 : 1.5)) * 2) / 2;
+  const flip = games.find(g => g.season === 2026 && g.week === 11 && Math.abs(g.line) >= 6); if (flip) flip.line = -flip.line;
   return { teams, games, today: '2026-11-07' };
 }
 
@@ -63,6 +67,7 @@ function espnEvent(g) {
     id: g.id, date: g.date, season: { year: g.season, type: 2 }, week: { number: g.week },
     competitions: [{ neutralSite: g.neutral, conferenceCompetition: false, venue: { fullName: `${v[0]} Stadium`, indoor: DOMES.has(v[0]) || !!g.dome, address: { city: v[0], state: v[1] } },
       competitors: [comp(g.home, 'home', g.hp), comp(g.away, 'away', g.ap)], broadcasts: [{ names: ['ESPN'] }],
+      odds: g.line === undefined ? [] : [{ details: g.line === 0 ? 'EVEN' : `${g.line < 0 ? g.home.abbrev : g.away.abbrev} ${-Math.abs(g.line)}`, overUnder: 55.5, provider: { name: 'Mock Book' } }],
       status: { period: g.state === 'post' ? 4 : 0, displayClock: '0:00', type: { state: g.state, completed: g.state === 'post', shortDetail: g.state === 'post' ? 'Final' : 'Sat 3:30 PM' } } }],
   };
 }
