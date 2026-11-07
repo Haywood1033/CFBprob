@@ -6,7 +6,9 @@ College football: the model's pick in every game, the **best play of the day**, 
 - **Team ratings** — opponent-adjusted offense and defense from final scores (`lib/ratings.js`): this season's results, with 70% of last season carried in early, blowouts capped, FBS and FCS on their own levels. Home field is fitted each season.
 - **Conditions** (`lib/conditions.js`) — days of rest (bye weeks, short weeks), how far the visitor travels and how many time zones (stadiums geocoded with Open-Meteo), and the kickoff forecast (wind, rain, cold lower the projected total; a dome is a dome).
 - **Signals** (`lib/picks.js`) — eight data points on the team the model picks: 🏆 power gap, 🏟 home field, ⚔️ offense edge, 🛡 defense edge, 🔥 form, 😴 rest edge, ✈️ travel edge, 🌤 clean conditions. Tags: Elite 6+, All-Star 5, Value 4.
-- **Best play** — a *sharp* pick first (power gap + defense edge + home, rest or travel), then the most signals, then the highest chance. **Parlays** take the next best picks, one per game, FBS vs FBS only. Both lock at the first kickoff with a database.
+- **Best play** — a *sharp* pick first (power gap + defense edge + home, rest or travel), then the most signals, then the highest chance.
+- **Best plays tab** — up to 5 sharp plays, the board of every All-Star and Elite pick, and **Risks & fades**: favorites (60%+) with 2+ red flags (on the road, opponent off a bye, defense projected to allow 28+, travel to a neutral site, bad weather). On 1,559 real favorites, 2+ of the tested flags cost about 3 points of win rate, 3+ about 5.
+- **Parlays** take the next best picks, one per game, FBS vs FBS only, with flagged favorites left out. Everything locks at the first kickoff with a database.
 
 ## Backtest (real games, ratings from earlier games only)
 2,475 FBS games, 2024 – 2026 week 9, against CFBD's Elo forecast on the same games:

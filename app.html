@@ -546,6 +546,22 @@ td.click:hover .pname { text-decoration: underline; }
 .sig-list li.off { color: var(--ink-3); }
 .sig-list li b { font-weight: 600; }
 .filters { margin-bottom: 14px; }
+.sharp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+.sharp-card { padding: 14px 16px; border-color: rgba(45, 212, 191, 0.35); cursor: pointer; }
+.sharp-card:hover, .risk-card:hover, .bp-row:hover { border-color: var(--accent); }
+.sc-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.sc-name { font-size: 17px; font-weight: 700; margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+.sc-name .logo, .bp-row .logo { width: auto; height: auto; }
+.sc-big { font-size: 22px; font-weight: 700; text-align: right; }
+.sharp-card ul, .risk-card ul { margin: 10px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 12.5px; line-height: 1.55; }
+.slate-read { padding: 14px 16px; margin-bottom: 14px; } .slate-read p { margin: 0; font-size: 14px; line-height: 1.6; }
+.bp-list { padding: 4px 0; }
+.bp-row { display: grid; grid-template-columns: 26px 28px 1fr auto 74px; gap: 10px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--line); border-left: 2px solid transparent; cursor: pointer; }
+.bp-row:first-child { border-top: 0; }
+.bp-row .rank { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-3); color: var(--ink-2); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.bp-val { font-weight: 700; font-size: 15px; text-align: right; }
+.risk-card { padding: 14px 16px; border-color: rgba(248, 113, 113, 0.3); cursor: pointer; }
+@media (max-width: 640px) { .bp-row { grid-template-columns: 22px 24px 1fr auto; } .bp-row .bp-tier { display: none; } }
 @media (max-width: 640px) { .best { grid-template-columns: 1fr; } .best > div + div { border-left: 0; border-top: 1px solid var(--line); } }
 </style>
 </head>
@@ -566,10 +582,12 @@ td.click:hover .pname { text-decoration: underline; }
 <section class="wrap hero" id="hero" aria-live="polite"><div class="skel" style="height:30px;width:360px;max-width:100%"></div></section>
 <nav class="tabs" aria-label="Sections"><div class="wrap" role="tablist">
   <button class="tab" role="tab" data-tab="today" aria-selected="true">Today</button>
+  <button class="tab" role="tab" data-tab="best" aria-selected="false">Best plays</button>
   <button class="tab" role="tab" data-tab="parlays" aria-selected="false">Parlays</button>
 </div></nav>
 <main class="wrap">
   <section class="panel" id="panel-today" role="tabpanel"></section>
+  <section class="panel" id="panel-best" role="tabpanel" hidden></section>
   <section class="panel" id="panel-parlays" role="tabpanel" hidden></section>
 </main>
 <div class="scrim" id="scrim"></div>
@@ -578,7 +596,7 @@ td.click:hover .pname { text-decoration: underline; }
 <script>
 'use strict';
 const qs = new URLSearchParams(location.search);
-const S = { date: qs.get('date') || '', tab: qs.get('tab') === 'parlays' ? 'parlays' : 'today', data: null, err: null, filter: 'all', conf: '' };
+const S = { date: qs.get('date') || '', tab: ['parlays', 'best'].includes(qs.get('tab')) ? qs.get('tab') : 'today', bpFilter: 'all', data: null, err: null, filter: 'all', conf: '' };
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p, d = 0) => (p === null || p === undefined || isNaN(p) ? '—' : `${(p * 100).toFixed(d)}%`);
@@ -632,7 +650,7 @@ function bestHtml() {
       <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${b.sharp ? '<span class="tag pos">🎯 Sharp play</span>' : ''}${tierChip(b.tier)} ${sigIcons(b)} <span class="note">${b.count} of 8 signals</span></div>
       <div class="ctx">${b.side === 'home' ? 'vs' : 'at'} ${teamName(b.opp)}${g ? ` · ${scoreLine(g)}${g.neutral ? ' · neutral site' : ''}` : ''}</div>
       <div class="nums"><div><div class="v">${pct(b.prob)}</div><div class="l">to win</div></div><div><div class="v">${b.margin > 0 ? '+' : ''}${b.margin.toFixed(1)}</div><div class="l">projected margin</div></div><div><div class="v">${b.ptsFor.toFixed(0)}–${b.ptsAg.toFixed(0)}</div><div class="l">projected score</div></div></div>
-      <p class="note" style="margin-top:10px">${b.sharp ? 'A sharp play: a big power gap and a defense edge, plus home field, rest or travel on its side.' : 'No game had all of the sharp criteria today, so this is the pick with the most signals, then the highest chance.'} Picked from the data (team ratings, home field, rest, travel, weather), not from betting lines.</p></div>
+      <p class="note" style="margin-top:10px">${b.sharp ? 'A sharp play: a big power gap and a defense edge, plus home field, rest or travel on its side.' : 'No game had all of the sharp criteria today, so this is the pick with the most signals, then the highest chance.'} Picked from the data (team ratings, home field, rest, travel, weather), not from betting lines. <a href="?tab=best" data-goto="best">All of today’s best plays →</a></p></div>
     <div><div class="section-t">Why</div><ul class="sig-list">${b.signals.map(s => `<li class="${s.on ? '' : 'off'}"><span>${s.icon}</span><span><b>${esc(s.label)}</b> · ${esc(s.detail)}</span></li>`).join('')}</ul></div></div>`;
 }
 
@@ -663,6 +681,33 @@ function renderToday() {
     <p class="note foot">Win chances come from opponent-adjusted offense and defense ratings built from this season’s results (with part of last season carried in early), home field, and the game’s conditions. No betting lines are used. Tags: Elite 6+ of 8 signals, All-Star 5, Value 4.</p>`;
 }
 
+function renderBest() {
+  const el = $('#panel-best');
+  if (!S.data) { el.innerHTML = '<div class="skel" style="height:320px"></div>'; return; }
+  const d = S.data, board = (d.board || []).filter(x => S.bpFilter === 'all' || (S.bpFilter === 'top25' ? x.team.rank || x.opp.rank : x.tier === S.bpFilter));
+  const sub = x => { const g = gameById(x.gameId); return `${x.side === 'home' ? 'vs' : 'at'} ${teamName(x.opp)} · ${g ? scoreLine(g) : ''}`; };
+  const result = x => { const g = gameById(x.gameId); return g ? pickResult(g, x) : ''; };
+  const sharpCard = x => `<div class="card sharp-card" data-game="${esc(x.gameId)}"><div class="sc-top"><div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="tag pos">🎯 Sharp</span>${tierChip(x.tier)}<span class="note">${x.count} of 8</span></div>
+      <div class="sc-name">${logo(x.team, 24)}<span>${teamName(x.team)}</span>${result(x)}</div><div class="note">${sub(x)}</div></div>
+      <div><div class="sc-big">${pct(x.prob)}</div><div class="note" style="text-align:right">to win · by ${x.margin.toFixed(1)}</div></div></div>
+    <div style="margin-top:10px">${sigIcons(x)}</div>
+    <ul>${x.signals.filter(s => s.on).slice(0, 4).map(s => `<li>${s.icon} ${esc(s.label)}: ${esc(s.detail)}</li>`).join('')}</ul></div>`;
+  const row = (x, i) => `<div class="bp-row" data-game="${esc(x.gameId)}"><span class="rank">${i + 1}</span>${logo(x.team, 24)}<div><b>${teamName(x.team)}</b>${result(x)}${x.sharp ? ' <span class="tag pos" style="height:18px">🎯</span>' : ''}<div class="psub muted">${sub(x)} · ${x.count} signals</div></div><div class="bp-val">${pct(x.prob)}</div><div class="bp-tier" style="text-align:right">${tierChip(x.tier)}</div></div>`;
+  const riskCard = x => `<div class="card risk-card" data-game="${esc(x.gameId)}"><div class="sc-top"><div><div class="sc-name" style="font-size:15px">${logo(x.team, 20)}<span>${teamName(x.team)}</span>${result(x)}</div><div class="note">${sub(x)}</div></div>
+      <div><div class="sc-big" style="font-size:18px">${pct(x.prob)}</div><div class="note" style="text-align:right">model favorite</div></div></div>
+    <ul>${x.flags.map(f => `<li>${esc(f.text)}</li>`).join('')}</ul></div>`;
+  const n = (d.sharp || []).length;
+  el.innerHTML = `<div class="section-head" style="margin-top:0"><h2>🎯 Sharp plays</h2><span class="note">Power gap + defense edge + home field, rest or travel</span><span style="flex:1"></span>${lockTag(d.lock)}</div>
+    <div class="card slate-read"><p>${n ? `<b>${n} play${n === 1 ? '' : 's'} clear the sharp bar today.</b> These are the games where the data lines up, not the betting line.` : '<b>Nothing clears the sharp bar today.</b> That happens; the board below still has the day’s strongest picks.'} ${(d.risks || []).length ? `${d.risks.length} favorite${d.risks.length === 1 ? ' has' : 's have'} red flags.` : ''}</p></div>
+    <div class="sharp-grid">${(d.sharp || []).map(sharpCard).join('') || '<div class="card state"><p>No sharp plays today.</p></div>'}</div>
+    <div class="section-head"><h2>Best plays board</h2><span class="note">Every All-Star and Elite pick, FBS vs FBS: sharp plays first, then signals, then chance. Click a row for the breakdown.</span></div>
+    <div class="toolbar"><div class="seg" id="bpFilter">${[['all', 'All'], ['Elite', 'Elite'], ['All-Star', 'All-Star'], ['top25', 'Top 25']].map(([v, l]) => `<button data-v="${v}" aria-pressed="${S.bpFilter === v}">${l}</button>`).join('')}</div></div>
+    <div class="card bp-list">${board.map(row).join('') || '<p class="note" style="padding:14px 16px">No All-Star or Elite picks match.</p>'}</div>
+    <div class="section-head"><h2>Risks &amp; fades</h2><span class="note">Favorites (60%+) with 2 or more red flags. Left out of the parlays.</span></div>
+    <div class="parlays">${(d.risks || []).map(riskCard).join('') || '<p class="note">No favorites with red flags today.</p>'}</div>
+    <p class="note foot">Red flags tested on 1,559 favorites (2024–2026): on the road, the opponent off a bye, or a defense projected to allow 28+; with 2 or more, favorites won about 3 points less often than the model said, with 3 or more about 5 points less. Travel and weather flags count too but weren’t in the historical data.</p>`;
+}
 function renderParlays() {
   const el = $('#panel-parlays');
   if (!S.data) { el.innerHTML = '<div class="skel" style="height:320px"></div>'; return; }
@@ -694,7 +739,7 @@ function openDrawer(h, b) { $('#drawerH').innerHTML = h + `<button class="icon-b
 function closeDrawer() { $('#drawer').classList.remove('open'); $('#scrim').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); }
 
 function setTab(t) { S.tab = t; document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t))); document.querySelectorAll('.panel').forEach(p => (p.hidden = p.id !== `panel-${t}`)); const u = new URL(location.href); u.searchParams.set('tab', t); history.replaceState(null, '', u); }
-function renderAll() { renderHero(); renderToday(); renderParlays(); }
+function renderAll() { renderHero(); renderToday(); renderBest(); renderParlays(); }
 async function load(force = false) {
   $('#refresh').classList.add('spin');
   try { S.data = await api('/api/slate', force); S.err = null; if (!S.date) $('#dateInput').value = S.data.date; } catch (err) { S.err = err.message; }
@@ -704,8 +749,10 @@ document.addEventListener('click', e => {
   const t = e.target;
   if (t.closest('#drawerClose') || t === $('#scrim')) return closeDrawer();
   const tab = t.closest('.tab'); if (tab) return setTab(tab.dataset.tab);
+  const go = t.closest('[data-goto]'); if (go) { e.preventDefault(); return setTab(go.dataset.goto); }
   if (t.closest('#refresh')) return load(true);
   const f = t.closest('#fltr button'); if (f) { S.filter = f.dataset.v; return renderToday(); }
+  const bf = t.closest('#bpFilter button'); if (bf) { S.bpFilter = bf.dataset.v; return renderBest(); }
   const g = t.closest('[data-game]'); if (g) return openGame(g.dataset.game);
 });
 document.addEventListener('change', e => {

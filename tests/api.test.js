@@ -23,6 +23,11 @@ test('slate: every game projected and picked, best play and parlays from FBS gam
   assert.equal(new Set(body.parlays[2].picks.map(p => p.gameId)).size, 5, 'one leg per game');
   assert.equal(body.parlays[0].picks[0].gameId, body.best.gameId, 'the best play leads the parlays');
   assert.equal(body.lock.state, 'off', 'no database, no lock');
+  assert.ok(body.sharp.length <= 5 && body.sharp.every(x => x.sharp), 'sharp plays are sharp');
+  assert.ok(body.board.every(x => ['Elite', 'All-Star'].includes(x.tier)), 'the board is All-Star and Elite');
+  assert.ok(body.risks.every(x => x.risk && x.flags.length >= 2 && x.prob >= 0.6), 'risks: favorites with 2+ red flags');
+  const riskIds = new Set(body.risks.map(x => x.gameId));
+  assert.ok(body.parlays.every(p => p.picks.every(x => !riskIds.has(x.gameId))), 'no risk in a parlay');
   // the CSV lagged a week; ESPN filled it in
   assert.ok(body.league.gamesRated >= 9 * 12 - 4);
 });
