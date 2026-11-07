@@ -1,0 +1,11 @@
+{
+  "outputDirectory": ".",
+  "functions": {
+    "api/slate.js":  { "maxDuration": 60 },
+    "api/health.js": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/app.html" },
+    { "source": "/app", "destination": "/app.html" }
+  ]
+}
