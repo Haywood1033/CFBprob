@@ -7,7 +7,7 @@ const { etDate, seasonOf } = require('../lib/slate');
 const db = require('../lib/db');
 const { param, send } = require('./_util');
 
-async function check(name, fn) { const t = Date.now(); try { return { name, ok: true, ms: Date.now() - t, ...(await fn()) }; } catch (err) { return { name, ok: false, ms: Date.now() - t, error: err.message }; } }
+async function check(name, fn) { const t = Date.now(); try { const r = await fn(); return { name, ok: true, ms: Date.now() - t, ...r }; } catch (err) { return { name, ok: false, ms: Date.now() - t, error: err.message }; } }
 
 module.exports = async (req, res) => {
   const date = param(req, 'date') || etDate(), season = seasonOf(date), probe = !!param(req, 'probe');
