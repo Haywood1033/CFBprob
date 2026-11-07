@@ -21,6 +21,10 @@ College football: the model's pick in every game, the **best play of the day**, 
 
 Picks with 3 signals won 87% of FBS-vs-FBS games, 4 won 90%. Travel and weather weren't in the historical data, so those two signals are untested.
 
+## Accuracy tab
+- **Tracked picks** — with a database, each day's picks (every game, the best play, the parlays, sharp plays, the board and risks) are saved before the first kickoff (also by a daily 11:30 ET run) and graded against the finals; a finished day's grade is stored. A late lock only tracks games that hadn't started.
+- **Replay test** — this season (or the last two) re-predicted week by week from earlier games only, with the live app's own pick code, graded. On 2025–2026: picks won 71.5% when the model said 71.7%; best play 25 of 27 full Saturdays; sharp plays 88%; 3/4/5-leg parlays 85% / 67% / 56%; flagged favorites 66% vs 72% predicted.
+
 ## Data
 - Past results: [cfbfastR-data](https://github.com/sportsdataverse/cfbfastR-data) schedules (raw GitHub).
 - This season's latest results, the day's slate, ranks, logos and live scores: ESPN's public scoreboard.

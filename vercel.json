@@ -1,9 +1,13 @@
 {
   "outputDirectory": ".",
   "functions": {
-    "api/slate.js":  { "maxDuration": 60 },
-    "api/health.js": { "maxDuration": 30 }
+    "api/slate.js":    { "maxDuration": 60 },
+    "api/accuracy.js": { "maxDuration": 60 },
+    "api/health.js":   { "maxDuration": 30 }
   },
+  "crons": [
+    { "path": "/api/slate", "schedule": "30 15 * * *" }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/app.html" },
     { "source": "/app", "destination": "/app.html" }

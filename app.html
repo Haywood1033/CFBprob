@@ -584,11 +584,13 @@ td.click:hover .pname { text-decoration: underline; }
   <button class="tab" role="tab" data-tab="today" aria-selected="true">Today</button>
   <button class="tab" role="tab" data-tab="best" aria-selected="false">Best plays</button>
   <button class="tab" role="tab" data-tab="parlays" aria-selected="false">Parlays</button>
+  <button class="tab" role="tab" data-tab="accuracy" aria-selected="false">Accuracy</button>
 </div></nav>
 <main class="wrap">
   <section class="panel" id="panel-today" role="tabpanel"></section>
   <section class="panel" id="panel-best" role="tabpanel" hidden></section>
   <section class="panel" id="panel-parlays" role="tabpanel" hidden></section>
+  <section class="panel" id="panel-accuracy" role="tabpanel" hidden></section>
 </main>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-label="Details"><div class="drawer-h" id="drawerH"></div><div class="drawer-b" id="drawerB"></div></aside>
@@ -596,7 +598,7 @@ td.click:hover .pname { text-decoration: underline; }
 <script>
 'use strict';
 const qs = new URLSearchParams(location.search);
-const S = { date: qs.get('date') || '', tab: ['parlays', 'best'].includes(qs.get('tab')) ? qs.get('tab') : 'today', bpFilter: 'all', data: null, err: null, filter: 'all', conf: '' };
+const S = { date: qs.get('date') || '', tab: ['parlays', 'best', 'accuracy'].includes(qs.get('tab')) ? qs.get('tab') : 'today', bpFilter: 'all', acc: null, accErr: null, replay: null, replayErr: null, replayLoading: false, replaySeasons: 'two', data: null, err: null, filter: 'all', conf: '' };
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (p, d = 0) => (p === null || p === undefined || isNaN(p) ? '—' : `${(p * 100).toFixed(d)}%`);
@@ -708,6 +710,42 @@ function renderBest() {
     <div class="parlays">${(d.risks || []).map(riskCard).join('') || '<p class="note">No favorites with red flags today.</p>'}</div>
     <p class="note foot">Red flags tested on 1,559 favorites (2024–2026): on the road, the opponent off a bye, or a defense projected to allow 28+; with 2 or more, favorites won about 3 points less often than the model said, with 3 or more about 5 points less. Travel and weather flags count too but weren’t in the historical data.</p>`;
 }
+// ── Accuracy: tracked picks (saved before kickoff, graded after), then the Replay test ──────────
+const rec = r => (r && r.n ? `${r.won} of ${r.n}` : '—');
+const rate = r => (r && r.n ? pct(r.won / r.n) : '—');
+const vsModel = r => (r && r.n ? `we said ${pct(r.predicted)}` : '');
+const accTile = (label, r, note) => `<div class="card tile"><div class="lbl">${label}</div><div class="val">${rate(r)} <small>${rec(r)}</small></div><div class="note">${note || vsModel(r)}</div></div>`;
+function accTables(A, { tracked }) {
+  return `<div class="two" style="margin-top:16px;align-items:start">
+    <div class="card"><div class="card-h"><h2>When we say X%, does it happen X%?</h2><span class="sub">Every FBS-vs-FBS pick, grouped by its chance</span></div><div class="table-wrap" style="border:0;border-radius:0"><table class="data"><thead><tr><th class="l">We said</th><th>Picks</th><th>Won</th></tr></thead><tbody>
+      ${A.bins.filter(b => b.n).map(b => `<tr><td class="l">${pct(b.lo)}–${pct(b.hi)} <span class="muted">(avg ${pct(b.predicted)})</span></td><td>${b.n}</td><td>${pct(b.won / b.n)}</td></tr>`).join('') || '<tr><td class="l muted" colspan="3">No graded picks yet.</td></tr>'}</tbody></table></div></div>
+    <div class="card"><div class="card-h"><h2>By tag</h2><span class="sub">Signals agreeing: Elite 6+, All-Star 5, Value 4</span></div><div class="table-wrap" style="border:0;border-radius:0"><table class="data"><thead><tr><th class="l">Tag</th><th>Picks</th><th>We said</th><th>Won</th></tr></thead><tbody>
+      ${A.tiers.map(t => `<tr><td class="l">${t.tier === 'No tag' ? 'No tag' : tierChip(t.tier)}</td><td>${t.n}</td><td>${t.n ? pct(t.predicted) : '—'}</td><td>${t.n ? pct(t.won / t.n) : '—'}</td></tr>`).join('')}</tbody></table></div>
+      ${tracked ? '' : '<div class="card-b note">Travel and weather aren’t in the historical results, so fewer picks reach All-Star or Elite in the replay than live.</div>'}</div></div>
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>Parlays</h2><span class="sub">${tracked ? 'The locked 3-, 4- and 5-leg tickets' : 'Full Saturdays (8+ FBS-vs-FBS games)'}: how often every leg won</span></div><div class="table-wrap" style="border:0;border-radius:0"><table class="data"><thead><tr><th class="l">Ticket</th><th>Days</th><th>We said</th><th>All legs won</th></tr></thead><tbody>
+      ${A.parlays.map(p => `<tr><td class="l">${p.legs}-leg</td><td>${p.n}</td><td>${p.n ? pct(p.predicted) : '—'}</td><td>${p.n ? `${p.hit} of ${p.n} · ${pct(p.hit / p.n)}` : '—'}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+function renderAccuracy() {
+  const el = $('#panel-accuracy'), A = S.acc, B = S.replay;
+  const tracked = !A ? (S.accErr ? stateHtml('Couldn’t load the record', 'Try again in a minute.', S.accErr) : '<div class="skel" style="height:120px"></div>')
+    : !A.connected ? '<div class="card state"><p>Pick tracking isn’t switched on yet.</p></div>'
+      : !A.summary.days ? '<div class="card state"><h3>No tracked days yet</h3><p>Each day’s picks are saved before the first kickoff and checked once the games are final. The first results show up the morning after the first saved slate.</p></div>'
+        : `<div class="tiles">
+            ${accTile('Best play of the day', A.summary.best)}${accTile('🎯 Sharp plays', A.summary.sharp)}${accTile('All FBS-vs-FBS picks', A.summary.all)}${accTile('Risks &amp; fades', A.summary.risks, `favorites with red flags · ${vsModel(A.summary.risks)}`)}
+          </div>${accTables(A.summary, { tracked: true })}
+          <div class="card" style="margin-top:16px"><div class="card-h"><h2>Day by day</h2></div><div class="table-wrap" style="border:0;border-radius:0"><table class="data"><thead><tr><th class="l">Date</th><th class="l">Best play</th><th>FBS picks</th><th>3 / 4 / 5-leg</th></tr></thead><tbody>
+            ${A.days.map(d => `<tr><td class="l">${esc(new Date(d.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }))}${d.complete ? '' : ' <span class="muted">in progress</span>'}</td><td class="l">${d.best ? `${esc(d.best.team)} ${d.best.won === 1 ? '<span class="tag pos" style="height:18px">Won</span>' : d.best.won === 0 ? '<span class="tag neg" style="height:18px">Lost</span>' : '<span class="muted">pending</span>'}` : '—'}</td><td>${d.record.n ? `${d.record.won} of ${d.record.n}` : '—'}</td><td>${[3, 4, 5].map(n => { const p = d.parlays.find(x => x.legs === n); return !p ? '—' : p.hit === 1 ? '✅' : p.hit === 0 ? '❌' : '…'; }).join(' ')}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const replay = `<div class="section-head"><h2>Replay test</h2><span class="note">We re-run past game days using only what was known before each day, build the same picks the app shows, then check them against the final scores. A bigger sample than the tracked picks.</span><span style="flex:1"></span><div class="seg" id="rpSeasons">${[['current', 'This season'], ['two', 'Last two seasons']].map(([v, l]) => `<button data-v="${v}" aria-pressed="${S.replaySeasons === v}">${l}</button>`).join('')}</div><button class="btn ${B ? '' : 'primary'}" id="runReplay" ${S.replayLoading ? 'disabled' : ''}>${S.replayLoading ? 'Running…' : B ? 'Run again' : 'Run the test'}</button></div>
+    ${S.replayErr ? stateHtml('The replay test didn’t finish', 'Try again in a minute.', S.replayErr) : ''}
+    ${!B && !S.replayErr ? '<div class="card state"><p>Takes about 15–30 seconds.</p></div>' : ''}
+    ${B ? `<div class="tiles">
+      ${accTile('Best play (full Saturdays)', B.best, `${vsModel(B.best)} · ${B.fullDays} Saturdays`)}${accTile('🎯 Sharp plays', B.sharp)}${accTile('All FBS-vs-FBS picks', B.all, `${vsModel(B.all)} · ${B.days} game days`)}${accTile('Risks &amp; fades', B.risks, `favorites with red flags · ${vsModel(B.risks)}`)}
+    </div>${accTables(B, { tracked: false })}` : ''}`;
+  el.innerHTML = `<div class="section-head" style="margin-top:0"><h2>Tracked picks</h2><span class="note">Every day’s picks are saved before the first kickoff and checked after the final whistle. Nothing is changed after the fact.</span></div>${tracked}${replay}
+    <p class="note foot">“We said” is the model’s average chance for those picks; close numbers mean its percentages are honest. Risks &amp; fades should win less often than we said (that’s the point of the flags). Small samples swing a lot.</p>`;
+}
+async function loadAccuracy() { try { S.acc = await api('/api/accuracy'); S.accErr = null; } catch (err) { S.accErr = err.message; } renderAccuracy(); }
+async function runReplay() { S.replayLoading = true; S.replayErr = null; renderAccuracy(); try { S.replay = await api(`/api/accuracy?replay=1&seasons=${S.replaySeasons}`); } catch (err) { S.replayErr = err.message; } S.replayLoading = false; renderAccuracy(); }
 function renderParlays() {
   const el = $('#panel-parlays');
   if (!S.data) { el.innerHTML = '<div class="skel" style="height:320px"></div>'; return; }
@@ -738,8 +776,8 @@ function openGame(id) {
 function openDrawer(h, b) { $('#drawerH').innerHTML = h + `<button class="icon-btn" id="drawerClose" aria-label="Close">${ICON.close}</button>`; $('#drawerB').innerHTML = b; $('#drawer').classList.add('open'); $('#scrim').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false'); }
 function closeDrawer() { $('#drawer').classList.remove('open'); $('#scrim').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); }
 
-function setTab(t) { S.tab = t; document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t))); document.querySelectorAll('.panel').forEach(p => (p.hidden = p.id !== `panel-${t}`)); const u = new URL(location.href); u.searchParams.set('tab', t); history.replaceState(null, '', u); }
-function renderAll() { renderHero(); renderToday(); renderBest(); renderParlays(); }
+function setTab(t) { if (t === 'accuracy' && !S.acc && !S.accErr) loadAccuracy(); S.tab = t; document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t))); document.querySelectorAll('.panel').forEach(p => (p.hidden = p.id !== `panel-${t}`)); const u = new URL(location.href); u.searchParams.set('tab', t); history.replaceState(null, '', u); }
+function renderAll() { renderHero(); renderToday(); renderBest(); renderParlays(); renderAccuracy(); }
 async function load(force = false) {
   $('#refresh').classList.add('spin');
   try { S.data = await api('/api/slate', force); S.err = null; if (!S.date) $('#dateInput').value = S.data.date; } catch (err) { S.err = err.message; }
@@ -753,6 +791,8 @@ document.addEventListener('click', e => {
   if (t.closest('#refresh')) return load(true);
   const f = t.closest('#fltr button'); if (f) { S.filter = f.dataset.v; return renderToday(); }
   const bf = t.closest('#bpFilter button'); if (bf) { S.bpFilter = bf.dataset.v; return renderBest(); }
+  if (t.closest('#runReplay')) return runReplay();
+  const rs = t.closest('#rpSeasons button'); if (rs) { S.replaySeasons = rs.dataset.v; return renderAccuracy(); }
   const g = t.closest('[data-game]'); if (g) return openGame(g.dataset.game);
 });
 document.addEventListener('change', e => {
