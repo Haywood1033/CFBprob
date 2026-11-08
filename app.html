@@ -632,9 +632,19 @@ function renderHero() {
     <div class="chips">${live ? `<span class="chip live"><span class="dot"></span>${live} live</span>` : ''}</div>`;
   $('#updated').textContent = `Updated ${new Date(d.generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
 }
+// The day's locked picks, remembered in this browser once the server confirms the lock, so a moment
+// when the database doesn't answer can't show different picks.
+function keepLock(d) {
+  const k = 'cfbprob-lock-' + d.date, st = d.lock?.state, keys = ['best', 'parlays', 'sharp', 'board', 'risks'];
+  try {
+    if (st === 'locked' || st === 'late') localStorage.setItem(k, JSON.stringify(Object.fromEntries(keys.map(x => [x, d[x]]))));
+    else if (st === 'unconfirmed') { const b = JSON.parse(localStorage.getItem(k) || 'null'); if (b) { Object.assign(d, b); d.lock = { state: 'locked', fromBrowser: true }; } }
+  } catch {}
+}
 function lockTag(L) {
   if (L?.state === 'locked') return '<span class="tag pos" data-tip="Picked before the first kickoff and kept for the day.">🔒 Locked at first kickoff</span>';
   if (L?.state === 'late') return '<span class="tag warn" data-tip="Nothing was saved before the first kickoff, so this locked on the first load after games started.">🔒 Locked late</span>';
+  if (L?.state === 'unconfirmed') return '<span class="tag warn" data-tip="The database didn’t answer, so the lock couldn’t be confirmed and nothing was changed. These are this morning’s picks; refresh in a minute.">Lock not confirmed yet</span>';
   if (L?.state === 'open') return '<span class="tag" data-tip="Updates until the first kickoff (weather, late results), then locks for the day.">Locks at first kickoff</span>';
   return '';
 }
@@ -782,7 +792,7 @@ function setTab(t) { if (t === 'accuracy' && !S.acc && !S.accErr) loadAccuracy()
 function renderAll() { renderHero(); renderToday(); renderBest(); renderParlays(); renderAccuracy(); }
 async function load(force = false) {
   $('#refresh').classList.add('spin');
-  try { S.data = await api('/api/slate', force); S.err = null; if (!S.date) $('#dateInput').value = S.data.date; } catch (err) { S.err = err.message; }
+  try { S.data = await api('/api/slate', force); keepLock(S.data); S.err = null; if (!S.date) $('#dateInput').value = S.data.date; } catch (err) { S.err = err.message; }
   $('#refresh').classList.remove('spin'); renderAll();
 }
 document.addEventListener('click', e => {
